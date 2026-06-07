@@ -1098,7 +1098,7 @@ async function libLoad_item(item){
 }
 const audio=document.getElementById('audioEl');
 const cv=document.getElementById('pitchCanvas'),c2=cv.getContext('2d');
-function getCH(){ return window.innerWidth>=1200?200:window.innerWidth>=768?160:100; }
+function getCH(){ return cv.parentElement.clientHeight||cv.parentElement.getBoundingClientRect().height||100; }
 let CH=getCH();
 const trail=[];
 
@@ -1300,12 +1300,16 @@ async function startKaraokeFromUpload(){
   document.getElementById('lyrMain').textContent='Ready';
   document.getElementById('lyrNext').textContent='press sing to begin';
   document.getElementById('btnSing').disabled=false;
-  const wrap=cv.parentElement;
-  CH=getCH();
-  cv.width=wrap.clientWidth*devicePixelRatio; cv.height=CH*devicePixelRatio;
-  cv.style.width=wrap.clientWidth+'px'; cv.style.height=CH+'px';
-  c2.scale(devicePixelRatio,devicePixelRatio);
-  resetSt();
+  // CSSレンダリング確定後にcanvasサイズを設定（スマホでグラフがズレる問題対策）
+  requestAnimationFrame(()=>{
+    const wrap=cv.parentElement;
+    CH=getCH();
+    const pr=devicePixelRatio;
+    cv.width=wrap.clientWidth*pr; cv.height=CH*pr;
+    cv.style.width=wrap.clientWidth+'px'; cv.style.height=CH+'px';
+    c2.scale(pr,pr);
+    resetSt();
+  });
 }
 
 function resizeCanvas(){
