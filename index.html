@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VocaKara Studio v3</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400;500&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -679,33 +680,40 @@ let actx=null,anl=null,mic=null,running=false,t0=null,tid=null,rid=null;
 let mhist=[],phist=[]; let stitle='',sartist='';
 let rawMidiBuf=null,rawMidiName='';
 
+/* ════════════ SUPABASE ════════════ */
+const SUPA_URL='https://opctcuhqebjmddpslvxl.supabase.co';
+const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wY3RjdWhxZWJqbWRkcHNsdnhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4MTI3NDYsImV4cCI6MjA5NjM4ODc0Nn0._jThYhfHTVFPSDphmFULxTdY-dFset2qZJMCPeEq-qc';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+const BUCKET='vocakara';
+
 /* ════════════ LIBRARY ════════════ */
-const LIB_KEY='vocakara_lib_v1';
 
-function libLoad(){
-  try{ return JSON.parse(localStorage.getItem(LIB_KEY)||'[]'); }
-  catch{ return []; }
+async function libLoad(){
+  const {data,error}=await supa.from('songs').select('*').order('created_at',{ascending:false});
+  if(error){ console.error(error); return []; }
+  return data||[];
 }
-function libSave(items){ localStorage.setItem(LIB_KEY,JSON.stringify(items)); }
 
-function libRender(){
-  const items=libLoad();
+async function libRender(){
   const panel=document.getElementById('libPanel');
   const empty=document.getElementById('libEmpty');
   const btn=document.getElementById('libSaveBtn');
   const cnt=document.getElementById('libCnt');
-  cnt.textContent=items.length?`${items.length}曲`:'';
 
-  // remove old items (keep empty msg + save btn)
+  // ローディング表示
+  empty.style.display='block';
+  empty.textContent='読み込み中…';
   panel.querySelectorAll('.lib-item').forEach(el=>el.remove());
 
+  const items=await libLoad();
+  cnt.textContent=items.length?`${items.length}曲`:'';
+  empty.textContent='登録済みの曲はありません';
   empty.style.display=items.length?'none':'block';
 
-  // insert items before save btn
-  items.forEach((item,idx)=>{
+  items.forEach((item)=>{
     const div=document.createElement('div');
-    div.className='lib-item'; div.dataset.idx=idx;
-    const hasMp3=!!item.mp3Data, hasMid=!!item.midData;
+    div.className='lib-item';
+    const hasMp3=!!item.mp3_path, hasMid=!!item.mid_path;
     div.innerHTML=`
       <span class="lib-item-ic">${hasMp3&&hasMid?'🎵':hasMp3?'🎧':'🎼'}</span>
       <div class="lib-item-body">
@@ -717,13 +725,12 @@ function libRender(){
           ${item.notes?`<span>${item.notes}notes</span>`:''}
         </div>
       </div>
-      <button class="lib-item-del" onclick="libDelete(event,${idx})">✕</button>
+      <button class="lib-item-del" onclick="libDelete(event,'${item.id}','${item.mp3_path||''}','${item.mid_path||''}')">✕</button>
     `;
-    div.addEventListener('click', e=>{ if(e.target.classList.contains('lib-item-del'))return; libLoad_item(idx); });
+    div.addEventListener('click', e=>{ if(e.target.classList.contains('lib-item-del'))return; libLoad_item(item); });
     panel.insertBefore(div, btn);
   });
 
-  // save btn enabled only when mp3 or midi loaded
   btn.disabled=!(mp3File||selTrk>=0);
 }
 
@@ -744,116 +751,119 @@ function bufToB64(ab){
   return btoa(bin);
 }
 
+async function uploadFile(arrayBuf, filename, mimeType){
+  const path=`${Date.now()}_${filename}`;
+  const {data,error}=await supa.storage.from(BUCKET).upload(path, arrayBuf, {contentType:mimeType, upsert:false});
+  if(error) throw new Error(error.message);
+  return data.path;
+}
+
 async function saveToLib(){
-  const items=libLoad();
+  const btn=document.getElementById('libSaveBtn');
+  btn.disabled=true; btn.textContent='保存中…';
+
   const title=document.getElementById('metaTitle').value||stitle||'Unknown';
   const artist=document.getElementById('metaArtist').value||sartist||'';
 
-  let mp3Data=null, midData=null, midName='', mp3Name='';
+  let mp3_path=null, mid_path=null, mp3Name='', midName='';
 
-  if(mp3File){
-    mp3Name=mp3File.name;
-    try{
-      const ab=await mp3File.arrayBuffer();
-      mp3Data=bufToB64(ab);
-    }catch(e){ toast('MP3の読み込みに失敗しました','err'); return; }
-  }
-  if(selTrk>=0&&midiTracks[selTrk]){
-    const midInput=document.getElementById('fileMid');
-    const midFile=midInput.files[0]||null;
-    if(midFile){
-      midName=midFile.name;
-      try{
-        const ab=await midFile.arrayBuffer();
-        midData=bufToB64(ab);
-      }catch(e){ toast('MIDIの読み込みに失敗しました','err'); return; }
-    } else if(rawMidiBuf){
-      midName=rawMidiName;
-      midData=bufToB64(rawMidiBuf);
-    }
-  }
-
-  const entry={
-    id:Date.now(), title, artist,
-    mp3Data, mp3Name, midData, midName,
-    selTrk, notes: midiTracks[selTrk]?.notes.length||0,
-    savedAt: new Date().toLocaleDateString('ja-JP')
-  };
-
-  // check size (~5MB limit safety)
-  const json=JSON.stringify([...items,entry]);
-  if(json.length>4_500_000){ toast('ファイルサイズが大きすぎます（MP3省略して再登録を）','err'); return; }
-
-  items.push(entry);
   try{
-    libSave(items);
+    if(mp3File){
+      mp3Name=mp3File.name;
+      const ab=await mp3File.arrayBuffer();
+      toast('MP3をアップロード中…','info');
+      mp3_path=await uploadFile(ab, mp3Name, 'audio/mpeg');
+    }
+    if(selTrk>=0&&midiTracks[selTrk]){
+      const midInput=document.getElementById('fileMid');
+      const midFile=midInput.files[0]||null;
+      let midAb=null;
+      if(midFile){ midName=midFile.name; midAb=await midFile.arrayBuffer(); }
+      else if(rawMidiBuf){ midName=rawMidiName; midAb=rawMidiBuf; }
+      if(midAb){
+        toast('MIDIをアップロード中…','info');
+        mid_path=await uploadFile(midAb, midName, 'audio/midi');
+      }
+    }
+
+    const {error}=await supa.from('songs').insert({
+      title, artist, mp3_path, mid_path,
+      mp3_name: mp3Name, mid_name: midName,
+      sel_trk: selTrk,
+      notes: midiTracks[selTrk]?.notes.length||0
+    });
+    if(error) throw new Error(error.message);
+
+    toast(`「${title}」を登録しました ✓`,'ok');
+    libRender();
   }catch(e){
-    toast('保存失敗（ストレージ容量不足の可能性）','err'); return;
+    toast('保存失敗: '+e.message,'err');
+  }finally{
+    btn.textContent='＋ 現在の曲を登録';
+    btn.disabled=!(mp3File||selTrk>=0);
   }
-  libRender();
-  toast(`「${title}」を登録しました ✓`,'ok');
 }
 
-function libDelete(e,idx){
+async function libDelete(e, id, mp3_path, mid_path){
   e.stopPropagation();
-  const items=libLoad();
-  const name=items[idx]?.title||'この曲';
-  items.splice(idx,1);
-  libSave(items);
+  if(!confirm('この曲を削除しますか？')) return;
+  if(mp3_path) await supa.storage.from(BUCKET).remove([mp3_path]);
+  if(mid_path) await supa.storage.from(BUCKET).remove([mid_path]);
+  await supa.from('songs').delete().eq('id',id);
   libRender();
-  toast(`「${name}」を削除しました`,'info');
+  toast('削除しました','info');
 }
 
-async function libLoad_item(idx){
-  const items=libLoad();
-  const item=items[idx]; if(!item) return;
-
+async function libLoad_item(item){
   // mark active
-  document.querySelectorAll('.lib-item').forEach((el,i)=>el.classList.toggle('active',i===idx));
+  document.querySelectorAll('.lib-item').forEach(el=>el.classList.remove('active'));
+  event?.currentTarget?.classList?.add('active');
 
   // load MP3
-  if(item.mp3Data){
-    const bin=atob(item.mp3Data);
-    const bytes=new Uint8Array(bin.length).map((_,i)=>bin.charCodeAt(i));
-    const blob=new Blob([bytes],{type:'audio/mpeg'});
-    mp3File=new File([blob],item.mp3Name||'audio.mp3',{type:'audio/mpeg'});
-    if(mp3Url) URL.revokeObjectURL(mp3Url);
-    mp3Url=URL.createObjectURL(mp3File);
+  if(item.mp3_path){
+    const {data}=supa.storage.from(BUCKET).getPublicUrl(item.mp3_path);
+    mp3Url=data.publicUrl;
     audio.src=mp3Url;
-    const s=(item.mp3Name||'audio.mp3').length>24?(item.mp3Name||'audio.mp3').slice(0,24)+'…':item.mp3Name||'audio.mp3';
+    // mp3Fileはダミーで名前だけ保持
+    mp3File={name: item.mp3_name||'audio.mp3', arrayBuffer: async()=>{
+      const r=await fetch(mp3Url); return r.arrayBuffer();
+    }};
+    const s=(item.mp3_name||'audio.mp3').length>24?(item.mp3_name||'audio.mp3').slice(0,24)+'…':item.mp3_name||'audio.mp3';
     document.getElementById('mp3Nm').textContent=s;
     document.getElementById('cardMp3').classList.add('loaded');
   }
 
   // load MIDI
-  if(item.midData){
-    const bin=atob(item.midData);
-    const ab=new ArrayBuffer(bin.length);
-    const bytes=new Uint8Array(ab); for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
-    rawMidiBuf=ab; rawMidiName=item.midName||'midi.mid';
-    const s=rawMidiName.length>24?rawMidiName.slice(0,24)+'…':rawMidiName;
-    document.getElementById('midNm').textContent=s;
-    const bar=document.getElementById('pbar'); bar.style.width='50%';
+  if(item.mid_path){
+    const {data}=supa.storage.from(BUCKET).getPublicUrl(item.mid_path);
+    toast('MIDIを読み込み中…','info');
     try{
+      const r=await fetch(data.publicUrl);
+      const ab=await r.arrayBuffer();
+      rawMidiBuf=ab; rawMidiName=item.mid_name||'midi.mid';
+      const s=rawMidiName.length>24?rawMidiName.slice(0,24)+'…':rawMidiName;
+      document.getElementById('midNm').textContent=s;
+      const bar=document.getElementById('pbar'); bar.style.width='50%';
       const parsed=parseMidi(ab);
       midiTracks=toNotes(parsed); bar.style.width='100%';
       const sel=document.getElementById('trackSel');
       sel.innerHTML='<option value="">-- select track --</option>';
       midiTracks.forEach((tr,i)=>{const o=document.createElement('option');o.value=i;o.textContent=`${tr.name} (${tr.notes.length} notes)`;sel.appendChild(o);});
-      const best=item.selTrk>=0&&item.selTrk<midiTracks.length?item.selTrk:
+      const best=(item.sel_trk>=0&&item.sel_trk<midiTracks.length)?item.sel_trk:
         midiTracks.reduce((b,tr,i)=>tr.notes.length>midiTracks[b].notes.length?i:b,0);
       sel.value=best; onTrackChange();
       document.getElementById('trackPanel').classList.add('open');
       document.getElementById('cardMid').classList.add('loaded');
-    }catch(err){ toast('MIDI読み込みエラー: '+err.message,'err'); bar.style.width='0%'; }
+    }catch(err){ toast('MIDI読み込みエラー: '+err.message,'err'); }
   }
 
-  // meta
   if(item.title) document.getElementById('metaTitle').value=item.title;
   if(item.artist) document.getElementById('metaArtist').value=item.artist;
   document.getElementById('metaRow').classList.add('open');
-
   chkReady();
+  toast(`「${item.title}」を読み込みました`,'ok');
+}
+
   toast(`「${item.title}」を読み込みました`,'ok');
 }
 const audio=document.getElementById('audioEl');
