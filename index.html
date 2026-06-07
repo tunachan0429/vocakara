@@ -267,7 +267,7 @@ body::before {
 }
 .chip-r { color: var(--blue); border-color: rgba(125,211,252,0.2); background: rgba(125,211,252,0.06); }
 .chip-u { color: var(--rose); border-color: rgba(244,114,182,0.2); background: rgba(244,114,182,0.06); }
-.cw { border-radius: 6px; overflow: hidden; background: rgba(0,0,0,0.3); height: 64px; }
+.cw { border-radius: 6px; overflow: hidden; background: rgba(0,0,0,0.3); height: 150px; }
 canvas#pitchCanvas { display: block; width: 100%; height: 100%; }
 
 .lvl-row {
@@ -592,7 +592,7 @@ input[type=file] { display: none; }
 /* ════════════ MOBILE OPTIMIZATIONS (≤767px) ════════════ */
 @media (max-width: 767px) {
   /* ピッチグラフをスマホでも読みやすく */
-  .cw { height: 100px !important; }
+  .cw { height: 150px !important; }
 
   .chip { font-size: 11px; padding: 4px 9px; }
 
@@ -1106,7 +1106,19 @@ const trail=[];
 const NN=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const n2s=m=>NN[m%12]+(Math.floor(m/12)-1);
 const f2m=f=>f>0?Math.round(12*Math.log2(f/440)+69):null;
-const m2y=(m,lo=38,hi=86)=>CH-((m-lo)/(hi-lo))*CH;
+// 表示音域をMIDIデータの実際の音域に合わせて動的に計算
+function getRange(){
+  if(timeline.length===0) return {lo:48,hi:72};
+  const notes=timeline.map(n=>n.m);
+  const lo=Math.max(28, Math.min(...notes)-3);
+  const hi=Math.min(96, Math.max(...notes)+3);
+  return {lo,hi};
+}
+const m2y=(m)=>{
+  const {lo,hi}=getRange();
+  const span=Math.max(hi-lo,1);
+  return CH - ((m-lo)/span)*CH;
+};
 
 function acorr(buf,sr){
   const N=buf.length,rms=Math.sqrt(buf.reduce((s,v)=>s+v*v,0)/N);
@@ -1406,7 +1418,13 @@ function drawCv(){
   const W=cv.width/devicePixelRatio; c2.clearRect(0,0,cv.width,cv.height);
   // grid
   c2.strokeStyle='rgba(255,255,255,0.04)'; c2.lineWidth=1;
-  [36,48,60,72,84].forEach(n=>{const y=m2y(n)*devicePixelRatio;c2.beginPath();c2.moveTo(0,y);c2.lineTo(cv.width,y);c2.stroke();});
+  // グリッド線：実際の音域に合わせて均等に4本
+  const {lo:gLo,hi:gHi}=getRange();
+  const step=Math.round((gHi-gLo)/4);
+  for(let n=Math.round(gLo);n<=gHi;n+=step){
+    const y=m2y(n)*devicePixelRatio;
+    c2.beginPath();c2.moveTo(0,y);c2.lineTo(cv.width,y);c2.stroke();
+  }
   if(trail.length<2) return;
   const N=trail.length,xS=(W/200)*devicePixelRatio;
   // ref
