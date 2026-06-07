@@ -629,7 +629,7 @@ input[type=file] { display: none; }
       <span class="wm-main">VocaKara</span>
       <span class="wm-sub">Studio</span>
     </div>
-    <div class="mic-pill" id="micPill" onclick="if(!actx)initMic()" style="cursor:pointer;" title="クリックしてマイクを有効化">
+    <div class="mic-pill" id="micPill" onclick="ensureAudioContext()" style="cursor:pointer;" title="クリックしてマイクを有効化">
       <div class="mic-led" id="micLed"></div>
       <span id="micTxt">initializing</span>
     </div>
@@ -1250,14 +1250,11 @@ async function runDiag(){
 }
 
 /* MIC */
+// getUserMedia はページ読み込み時に呼んでOK（許可ダイアログはブラウザが出す）
+// AudioContext だけはユーザー操作の中で作る→suspended回避
 async function initMic(){
   try{
     mic=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
-    // ユーザー操作の中でAudioContextを作成 → suspended回避
-    actx=new(window.AudioContext||window.webkitAudioContext)();
-    await actx.resume();
-    anl=actx.createAnalyser(); anl.fftSize=2048;
-    actx.createMediaStreamSource(mic).connect(anl);
     const p=document.getElementById('micPill'); p.className='mic-pill active';
     document.getElementById('micTxt').textContent='mic on';
     toast('Microphone connected','ok');
@@ -1268,14 +1265,27 @@ async function initMic(){
   }
   chkReady();
 }
-// ページ読み込み時には呼ばず、マイクピルのクリックで初めて呼ぶ
+
+// AudioContext はユーザー操作の中で初めて作る（suspended対策）
+async function ensureAudioContext(){
+  if(!actx){
+    actx=new(window.AudioContext||window.webkitAudioContext)();
+  }
+  if(actx.state==='suspended') await actx.resume();
+  // マイクストリームをまだ繋いでいなければ接続
+  if(mic && !anl){
+    anl=actx.createAnalyser(); anl.fftSize=2048;
+    actx.createMediaStreamSource(mic).connect(anl);
+  }
+}
+
+initMic(); // マイク許可はページ読み込み時に取得
 libRender();
 
 /* KARAOKE START */
 async function startKaraokeFromUpload(){
-  // Start Karaokeボタンもユーザー操作なのでここでもactxを起こす
-  if(!actx){ await initMic(); }
-  else if(actx.state==='suspended'){ await actx.resume(); }
+  // Sing ボタンより前に AudioContext を確実に起こす（suspended対策）
+  await ensureAudioContext();
   stitle=document.getElementById('metaTitle').value||'Unknown';
   sartist=document.getElementById('metaArtist').value||'';
   audio.addEventListener('loadedmetadata',()=>{
@@ -1332,8 +1342,7 @@ function resetSt(){
 
 async function beginSinging(){
   if(!anl) return;
-  // サーバー環境でもaudio再生できるようresumeをawait
-  if(actx.state==='suspended') await actx.resume();
+  await ensureAudioContext();
   audio.currentTime=0;
   try{ await audio.play(); }catch(e){ console.warn('audio.play failed:',e); }
   running=true; t0=Date.now();
