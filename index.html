@@ -933,9 +933,6 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
     autoRefreshToken: false,
     detectSessionInUrl: false,
   },
-  global: {
-    fetch: (...args) => fetch(...args),  // nativeフェッチを強制
-  },
   realtime: { params: { eventsPerSecond: 0 } },  // realtimeを無効化
 });
 const BUCKET='vocakara';
@@ -1090,6 +1087,7 @@ async function libLoad_item(item){
       const testRes=await fetch(mp3Url, {method:'HEAD'});
       if(!testRes.ok) throw new Error(`HTTP ${testRes.status}: Supabaseバケットのpublicアクセスを有効にしてください`);
       audio.src=mp3Url;
+      audio.load(); // srcセット後に明示的にloadを呼ぶ
       mp3File={name: item.mp3_name||'audio.mp3', arrayBuffer: async()=>{
         const r=await fetch(mp3Url); return r.arrayBuffer();
       }};
@@ -1141,6 +1139,9 @@ async function libLoad_item(item){
   toast(`「${item.title}」を読み込みました`,'ok');
 }
 const audio=document.getElementById('audioEl');
+// audioの初期設定（宣言直後に行う）
+audio.preload='auto';
+audio.crossOrigin='anonymous';
 const cv=document.getElementById('pitchCanvas'),c2=cv.getContext('2d');
 function getCH(){ return cv.parentElement.clientHeight||cv.parentElement.getBoundingClientRect().height||100; }
 let CH=getCH();
@@ -1156,12 +1157,13 @@ function onVolChange(slider){
   // アイコン切り替え
   document.getElementById('volIc').textContent=v===0?'🔇':v<40?'🔉':'🔊';
 }
-// 初期値を反映
-(function(){
+// 初期値を反映（DOMContentLoaded後に確実に実行）
+function initVolume(){
   const s=document.getElementById('volSlider');
   audio.volume=parseInt(s.value)/100;
   s.style.setProperty('--vol-pct', s.value+'%');
-})();
+}
+initVolume();
 
 /* UTILS */
 const NN=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
@@ -1221,7 +1223,10 @@ document.getElementById('fileMp3').addEventListener('change',async e=>{
   const f=e.target.files[0]; if(!f) return;
   mp3File=f;
   if(mp3Url) URL.revokeObjectURL(mp3Url);
-  mp3Url=URL.createObjectURL(f); audio.src=mp3Url;
+  mp3Url=URL.createObjectURL(f);
+  // audio.src を確実にセット（loadedmetadata を待つ）
+  audio.src=mp3Url;
+  audio.load();
   const s=f.name.length>24?f.name.slice(0,24)+'…':f.name;
   document.getElementById('mp3Nm').textContent=s;
   document.getElementById('cardMp3').classList.add('loaded');
@@ -1422,8 +1427,27 @@ function resetSt(){
 async function beginSinging(){
   if(!anl) return;
   await ensureAudioContext();
+  // 音量を再適用（iOSでサスペンド解除後に音量がリセットされることがある）
+  const volSlider=document.getElementById('volSlider');
+  audio.volume=parseInt(volSlider.value)/100;
   audio.currentTime=0;
-  try{ await audio.play(); }catch(e){ console.warn('audio.play failed:',e); }
+  // audio.src が空の場合は再セット
+  if(mp3Url && !audio.src) audio.src=mp3Url;
+  try{
+    const playPromise=audio.play();
+    if(playPromise!==undefined){
+      await playPromise;
+    }
+  }catch(e){
+    console.warn('audio.play failed:',e);
+    // NotAllowedError: ユーザー操作なしの場合はトーストで通知
+    if(e.name==='NotAllowedError'){
+      toast('画面をタップしてから再度Singを押してください','err');
+      document.getElementById('btnSing').disabled=false;
+      document.getElementById('btnSing').textContent='Sing';
+      return;
+    }
+  }
   running=true; t0=Date.now();
   document.getElementById('btnSing').disabled=true;
   document.getElementById('btnSing').textContent='Singing…';
@@ -1538,9 +1562,23 @@ async function getCoach(score,pitch,stab,notes,grade){
 }
 
 /* NAV */
-function goUpload(){running=false;clearInterval(tid);cancelAnimationFrame(rid);audio.pause();document.getElementById('btnSing').textContent='Sing';document.getElementById('btnSing').disabled=false;showSc('upload');}
+function goUpload(){
+  running=false;clearInterval(tid);cancelAnimationFrame(rid);
+  audio.pause();
+  // 音量を維持したままsrcをリセット（次の曲用）
+  document.getElementById('btnSing').textContent='Sing';
+  document.getElementById('btnSing').disabled=false;
+  showSc('upload');
+}
 function retryKaraoke(){resetSt();showSc('karaoke');document.getElementById('btnSing').disabled=false;document.getElementById('btnSing').textContent='Sing';document.getElementById('lyrMain').textContent='Ready';document.getElementById('lyrNext').textContent='press sing to begin';}
 audio.addEventListener('ended',()=>{if(running)stop();});
+// オーディオエラーをキャッチしてユーザーに通知
+audio.addEventListener('error',(e)=>{
+  const codes={1:'読み込みが中断されました',2:'ネットワークエラー',3:'デコードエラー（対応していない形式の可能性）',4:'ファイルが見つかりません'};
+  const msg=codes[audio.error?.code]||'不明なオーディオエラー';
+  console.error('[AUDIO ERROR]', audio.error, e);
+  toast('音声エラー: '+msg,'err');
+});
 </script>
 </body>
 </html>
