@@ -629,7 +629,7 @@ input[type=file] { display: none; }
       <span class="wm-main">VocaKara</span>
       <span class="wm-sub">Studio</span>
     </div>
-    <div class="mic-pill" id="micPill">
+    <div class="mic-pill" id="micPill" onclick="if(!actx)initMic()" style="cursor:pointer;" title="クリックしてマイクを有効化">
       <div class="mic-led" id="micLed"></div>
       <span id="micTxt">initializing</span>
     </div>
@@ -1253,7 +1253,9 @@ async function runDiag(){
 async function initMic(){
   try{
     mic=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    // ユーザー操作の中でAudioContextを作成 → suspended回避
     actx=new(window.AudioContext||window.webkitAudioContext)();
+    await actx.resume();
     anl=actx.createAnalyser(); anl.fftSize=2048;
     actx.createMediaStreamSource(mic).connect(anl);
     const p=document.getElementById('micPill'); p.className='mic-pill active';
@@ -1266,11 +1268,14 @@ async function initMic(){
   }
   chkReady();
 }
-initMic();
+// ページ読み込み時には呼ばず、マイクピルのクリックで初めて呼ぶ
 libRender();
 
 /* KARAOKE START */
-function startKaraokeFromUpload(){
+async function startKaraokeFromUpload(){
+  // Start Karaokeボタンもユーザー操作なのでここでもactxを起こす
+  if(!actx){ await initMic(); }
+  else if(actx.state==='suspended'){ await actx.resume(); }
   stitle=document.getElementById('metaTitle').value||'Unknown';
   sartist=document.getElementById('metaArtist').value||'';
   audio.addEventListener('loadedmetadata',()=>{
@@ -1325,10 +1330,12 @@ function resetSt(){
   drawCv();
 }
 
-function beginSinging(){
+async function beginSinging(){
   if(!anl) return;
-  if(actx.state==='suspended') actx.resume();
-  audio.currentTime=0; audio.play().catch(()=>{});
+  // サーバー環境でもaudio再生できるようresumeをawait
+  if(actx.state==='suspended') await actx.resume();
+  audio.currentTime=0;
+  try{ await audio.play(); }catch(e){ console.warn('audio.play failed:',e); }
   running=true; t0=Date.now();
   document.getElementById('btnSing').disabled=true;
   document.getElementById('btnSing').textContent='Singing…';
