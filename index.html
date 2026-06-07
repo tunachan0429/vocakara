@@ -460,6 +460,162 @@ input[type=file] { display: none; }
 .lib-wrap { display: flex; flex-direction: column; }
 .lib-wrap .lib-toggle { border-radius: var(--r); }
 .lib-wrap.lib-open .lib-toggle { border-radius: var(--r) var(--r) 0 0; }
+
+/* ════════════ RESPONSIVE — PC (≥768px) ════════════ */
+@media (min-width: 768px) {
+  #app {
+    max-width: 1100px;
+    flex-direction: column;
+  }
+
+  /* UPLOAD — 2カラム */
+  #screen-upload.active {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto;
+    gap: 24px 40px;
+    padding: 36px 48px 48px;
+    align-items: start;
+  }
+  #screen-upload .hero        { grid-column: 1 / -1; }
+  #screen-upload .lib-wrap    { grid-column: 1 / -1; }
+  #screen-upload .rule        { grid-column: 1 / -1; }
+  #screen-upload .upload-pair { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; gap: 16px; }
+  #screen-upload .panel       { grid-column: 1 / -1; }
+  #screen-upload .meta-row    { grid-column: 1 / -1; }
+  #screen-upload .ready-row   { grid-column: 1 / -1; justify-content: flex-start; gap: 20px; }
+  #screen-upload .cta         { grid-column: 1 / -1; max-width: 360px; justify-self: center; }
+  #screen-upload .info-c      { grid-column: 1 / -1; }
+  #screen-upload #diagOut,
+  #screen-upload button[onclick="runDiag()"] { grid-column: 1 / -1; }
+
+  .dz { padding: 32px 20px 28px; }
+  .dz-ic { font-size: 36px; margin-bottom: 14px; }
+
+  .hero-t { font-size: 48px; }
+  .hero-d { font-size: 13px; }
+
+  /* KARAOKE — サイドバー付き2カラム */
+  #screen-karaoke.active {
+    display: grid !important;
+    grid-template-columns: 1fr 340px;
+    grid-template-rows: auto auto auto auto 1fr;
+    grid-template-areas:
+      "stage   stage"
+      "pitch   sidebar"
+      "lvl     sidebar"
+      "transport sidebar"
+      "ctrl    sidebar";
+    min-height: calc(100vh - 60px);
+  }
+
+  .stage {
+    grid-area: stage;
+    height: 260px;
+  }
+  .cn { font-size: 72px; min-height: 80px; }
+
+  .pitch-sec {
+    grid-area: pitch;
+    padding: 16px 28px;
+  }
+  /* ピッチグラフを大きく */
+  .cw { height: 160px !important; }
+
+  .lvl-row {
+    grid-area: lvl;
+    padding: 10px 28px;
+  }
+
+  .transport {
+    grid-area: transport;
+    padding: 12px 28px;
+  }
+  .t-mono { font-size: 13px; min-width: 92px; }
+  .scl { font-size: 32px; min-width: 60px; }
+
+  .ctrl-row {
+    grid-area: ctrl;
+    padding: 16px 28px;
+    align-self: start;
+  }
+  .btn-sg { font-size: 20px; padding: 14px; }
+
+  /* サイドバー (右列) */
+  .karaoke-sidebar {
+    grid-area: sidebar;
+    display: flex !important;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px 24px 20px 0;
+    border-left: 1px solid var(--line);
+    overflow-y: auto;
+    align-self: stretch;
+  }
+
+  /* RESULT — 2カラム */
+  #screen-result.active {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    padding: 40px 48px;
+    align-items: start;
+  }
+  #screen-result .r-hero  { grid-column: 1 / -1; }
+  #screen-result .stats   { grid-column: 1 / -1; grid-template-columns: repeat(3, 1fr); }
+  #screen-result .coach   { grid-column: 1 / 2; }
+  #screen-result .r-acts  { grid-column: 2 / 3; align-self: start; padding-top: 4px; }
+
+  .r-sc { font-size: 110px; }
+  .r-gr { font-size: 28px; }
+
+  /* HEADER */
+  .hd { padding: 20px 48px 16px; }
+  .wm-main { font-size: 26px; }
+
+  /* ピッチグラフのラベル chip を大きく */
+  .chip { font-size: 12px; padding: 4px 10px; }
+  .ph-lbl { font-size: 10px; }
+}
+
+/* ════════════ LARGE PC (≥1200px) ════════════ */
+@media (min-width: 1200px) {
+  #app { max-width: 1280px; }
+  #screen-karaoke.active {
+    grid-template-columns: 1fr 380px;
+  }
+  .cw { height: 200px !important; }
+  .stage { height: 300px; }
+  .cn { font-size: 80px; }
+}
+
+/* ════════════ MOBILE OPTIMIZATIONS (≤767px) ════════════ */
+@media (max-width: 767px) {
+  /* ピッチグラフをスマホでも読みやすく */
+  .cw { height: 100px !important; }
+
+  .chip { font-size: 11px; padding: 4px 9px; }
+
+  /* ステージを少し小さく（縦スクロール減らす） */
+  .stage { height: 180px; }
+  .cn { font-size: 48px; min-height: 56px; }
+
+  /* transport をコンパクトに */
+  .t-mono { font-size: 10px; min-width: 66px; }
+  .scl { font-size: 22px; min-width: 40px; }
+
+  /* ボタンをタップしやすく */
+  .cta { padding: 16px; font-size: 18px; }
+  .btn-sg { padding: 14px; font-size: 18px; }
+  .btn-bk { padding: 12px 18px; }
+
+  /* ドロップゾーン */
+  .dz { padding: 26px 14px 20px; }
+  .dz-ic { font-size: 32px; }
+}
+
+/* ════════════ PC用サイドバー（非PC時は非表示） ════════════ */
+.karaoke-sidebar { display: none; }
 </style>
 </head>
 <body>
@@ -599,6 +755,43 @@ input[type=file] { display: none; }
       <button class="btn-bk" onclick="goUpload()">← Back</button>
       <button class="btn-sg" id="btnSing" onclick="beginSinging()" disabled>Sing</button>
     </div>
+
+    <!-- PC用サイドバー -->
+    <div class="karaoke-sidebar" id="karaokeSidebar">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:var(--silver);margin-bottom:2px;">Live Stats</div>
+      <div style="background:var(--ink2);border:1px solid var(--line);border-radius:var(--r);padding:20px 16px;text-align:center;">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:var(--silver);margin-bottom:8px;">Score</div>
+        <div id="scoreLiveSide" style="font-family:'Cormorant Garamond',serif;font-size:64px;font-weight:300;line-height:1;color:var(--silver);transition:color 0.3s;">&#8212;</div>
+      </div>
+      <div style="background:var(--ink2);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:var(--silver);">Pitch</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);">REF</span>
+          <span id="chipRSide" style="font-family:'DM Mono',monospace;font-size:18px;color:var(--blue);font-weight:500;">&#8212;</span>
+        </div>
+        <div style="height:1px;background:var(--line2);"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--rose);">YOU</span>
+          <span id="chipUSide" style="font-family:'DM Mono',monospace;font-size:18px;color:var(--rose);font-weight:500;">&#8212;</span>
+        </div>
+      </div>
+      <div style="background:var(--ink2);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:var(--silver);margin-bottom:10px;">Input Level</div>
+        <div style="height:6px;background:rgba(255,255,255,0.05);border-radius:3px;overflow:hidden;">
+          <div id="lvlFillSide" style="height:100%;width:0%;background:linear-gradient(90deg,var(--green),var(--amber),var(--red));transition:width 0.04s;border-radius:3px;"></div>
+        </div>
+        <div style="margin-top:8px;text-align:right;font-family:'DM Mono',monospace;font-size:13px;font-weight:500;color:var(--rose);" id="liveNSide">&#8212;</div>
+      </div>
+      <div style="background:rgba(201,168,76,0.04);border:1px solid rgba(201,168,76,0.1);border-radius:var(--r);padding:14px 16px;">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:var(--gold);margin-bottom:8px;">Legend</div>
+        <div style="font-size:11.5px;color:var(--silver);line-height:2;">
+          <span style="color:var(--blue);">&#9473;</span> 青線：MIDIリファレンス<br>
+          <span style="color:var(--rose);">&#9473;</span> ピンク線：あなたの音程<br>
+          <span style="color:var(--green);">●</span> 緑ドット：マッチング
+        </div>
+      </div>
+    </div>
+
     <audio id="audioEl"></audio>
   </section>
 
@@ -904,7 +1097,9 @@ async function libLoad_item(item){
   toast(`「${item.title}」を読み込みました`,'ok');
 }
 const audio=document.getElementById('audioEl');
-const cv=document.getElementById('pitchCanvas'),c2=cv.getContext('2d'),CH=64;
+const cv=document.getElementById('pitchCanvas'),c2=cv.getContext('2d');
+function getCH(){ return window.innerWidth>=1200?200:window.innerWidth>=768?160:100; }
+let CH=getCH();
 const trail=[];
 
 /* UTILS */
@@ -1091,11 +1286,25 @@ function startKaraokeFromUpload(){
   document.getElementById('lyrNext').textContent='press sing to begin';
   document.getElementById('btnSing').disabled=false;
   const wrap=cv.parentElement;
+  CH=getCH();
   cv.width=wrap.clientWidth*devicePixelRatio; cv.height=CH*devicePixelRatio;
   cv.style.width=wrap.clientWidth+'px'; cv.style.height=CH+'px';
   c2.scale(devicePixelRatio,devicePixelRatio);
   resetSt();
 }
+
+function resizeCanvas(){
+  if(document.getElementById('screen-karaoke').classList.contains('active')){
+    const wrap=cv.parentElement;
+    CH=getCH();
+    const pr=devicePixelRatio;
+    cv.width=wrap.clientWidth*pr; cv.height=CH*pr;
+    cv.style.width=wrap.clientWidth+'px'; cv.style.height=CH+'px';
+    c2.scale(pr,pr);
+    drawCv();
+  }
+}
+window.addEventListener('resize',resizeCanvas);
 
 function resetSt(){
   running=false; clearInterval(tid); cancelAnimationFrame(rid);
@@ -1108,6 +1317,11 @@ function resetSt(){
   document.getElementById('lvlFill').style.width='0%';
   document.getElementById('chipR').textContent='ref —';
   document.getElementById('chipU').textContent='you —';
+  const slSide=document.getElementById('scoreLiveSide'); if(slSide){slSide.textContent='—';slSide.style.color='var(--silver)';}
+  const rSide=document.getElementById('chipRSide'); if(rSide) rSide.textContent='—';
+  const uSide=document.getElementById('chipUSide'); if(uSide) uSide.textContent='—';
+  const lnSide=document.getElementById('liveNSide'); if(lnSide) lnSide.textContent='—';
+  const lfSide=document.getElementById('lvlFillSide'); if(lfSide) lfSide.style.width='0%';
   drawCv();
 }
 
@@ -1144,9 +1358,15 @@ function rafLoop(){
   const el=(Date.now()-t0)/1000, ref=getRef(el);
   const freq=acorr(buf,actx.sampleRate);
   let user=null; if(freq>0){const mm=f2m(freq);if(mm>=28&&mm<=88)user=mm;}
-  document.getElementById('chipR').textContent='ref '+(ref?n2s(ref):'—');
-  document.getElementById('chipU').textContent='you '+(user?n2s(user):'—');
-  document.getElementById('liveN').textContent=user?n2s(user):'—';
+  const refTxt=ref?n2s(ref):'—'; const userTxt=user?n2s(user):'—';
+  document.getElementById('chipR').textContent='ref '+refTxt;
+  document.getElementById('chipU').textContent='you '+userTxt;
+  document.getElementById('liveN').textContent=userTxt;
+  // サイドバー同期
+  const rSide=document.getElementById('chipRSide'); if(rSide) rSide.textContent=refTxt;
+  const uSide=document.getElementById('chipUSide'); if(uSide) uSide.textContent=userTxt;
+  const lnSide=document.getElementById('liveNSide'); if(lnSide) lnSide.textContent=userTxt;
+  const lfSide=document.getElementById('lvlFillSide'); if(lfSide) lfSide.style.width=Math.min(100,rms*500)+'%';
   let matched=false;
   if(ref!==null&&user!==null&&rms>0.008){
     matched=Math.abs(user-ref)<=2;
@@ -1154,6 +1374,9 @@ function rafLoop(){
     const rec=mhist.slice(-30),sc=Math.round(rec.filter(x=>x).length/rec.length*100);
     const el2=document.getElementById('scoreLive');
     el2.textContent=sc; el2.className='scl '+(sc>=70?'good':sc>=40?'ok':'bad');
+    // サイドバースコア同期
+    const slSide=document.getElementById('scoreLiveSide');
+    if(slSide){slSide.textContent=sc;slSide.style.color=sc>=70?'var(--green)':sc>=40?'var(--amber)':'var(--rose)';}
   }
   trail.push({ref,user,matched,t:el}); if(trail.length>200) trail.shift();
   drawCv(); rid=requestAnimationFrame(rafLoop);
