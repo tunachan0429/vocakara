@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VocaKara Studio v3</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.8/dist/umd/supabase.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400;500&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -124,6 +124,8 @@ body::before {
   cursor: pointer; overflow: hidden;
   transition: border-color 0.25s, background 0.25s, transform 0.2s;
   background: var(--ink2);
+  display: block; /* labelタグ対応 */
+  -webkit-tap-highlight-color: transparent; /* スマホのタップハイライト除去 */
 }
 .dz::before {
   content: ''; position: absolute; inset: 0; opacity: 0; transition: opacity 0.3s;
@@ -505,20 +507,20 @@ input[type=file] { display: none; }
     <div class="rule">ファイルを選択</div>
 
     <div class="upload-pair">
-      <div class="dz mp3" id="cardMp3" onclick="document.getElementById('fileMp3').click()">
-        <input type="file" id="fileMp3" accept=".mp3,audio/mpeg,audio/*">
+      <label class="dz mp3" id="cardMp3" for="fileMp3">
+        <input type="file" id="fileMp3" accept=".mp3,audio/mpeg">
         <span class="dz-ic">♪</span>
         <div class="dz-tp">MP3</div>
-        <div class="dz-nm" id="mp3Nm">クリックして選択</div>
+        <div class="dz-nm" id="mp3Nm">タップして選択</div>
         <span class="dz-ck">✓</span>
-      </div>
-      <div class="dz mid" id="cardMid" onclick="document.getElementById('fileMid').click()">
+      </label>
+      <label class="dz mid" id="cardMid" for="fileMid">
         <input type="file" id="fileMid" accept=".mid,.midi">
         <span class="dz-ic">♫</span>
         <div class="dz-tp">MIDI</div>
-        <div class="dz-nm" id="midNm">クリックして選択</div>
+        <div class="dz-nm" id="midNm">タップして選択</div>
         <span class="dz-ck">✓</span>
-      </div>
+      </label>
     </div>
 
     <div class="panel" id="trackPanel">
@@ -551,6 +553,11 @@ input[type=file] { display: none; }
       <strong>使い方：</strong> MP3 + MIDI をアップロード → トラック選択 → マイク許可 → スタート<br>
       <strong>MIDI入手先：</strong> piapro / ニコニコ配布 / MIDIアーカイブサイト
     </div>
+
+    <button onclick="runDiag()" style="margin:0 24px 8px;padding:8px 14px;border-radius:8px;border:1px dashed rgba(125,211,252,0.3);background:transparent;color:#7dd3fc;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.1em;cursor:pointer;width:calc(100% - 48px);">
+      Supabase接続診断
+    </button>
+    <div id="diagOut" style="margin:0 24px 16px;font-family:'DM Mono',monospace;font-size:10px;color:#8888aa;line-height:2;display:none;background:rgba(0,0,0,0.3);border-radius:8px;padding:10px 14px;"></div>
   </section>
 
   <!-- KARAOKE -->
@@ -683,14 +690,24 @@ let rawMidiBuf=null,rawMidiName='';
 /* ════════════ SUPABASE ════════════ */
 const SUPA_URL='https://opctcuhqebjmddpslvxl.supabase.co';
 const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wY3RjdWhxZWJqbWRkcHNsdnhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4MTI3NDYsImV4cCI6MjA5NjM4ODc0Nn0._jThYhfHTVFPSDphmFULxTdY-dFset2qZJMCPeEq-qc';
-const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+  },
+  global: {
+    fetch: (...args) => fetch(...args),  // nativeフェッチを強制
+  },
+  realtime: { params: { eventsPerSecond: 0 } },  // realtimeを無効化
+});
 const BUCKET='vocakara';
 
 /* ════════════ LIBRARY ════════════ */
 
 async function libLoad(){
   const {data,error}=await supa.from('songs').select('*').order('created_at',{ascending:false});
-  if(error){ console.error(error); return []; }
+  if(error){ console.error('[SUPA ERROR]', error, JSON.stringify(error)); return null; }
   return data||[];
 }
 
@@ -706,6 +723,12 @@ async function libRender(){
   panel.querySelectorAll('.lib-item').forEach(el=>el.remove());
 
   const items=await libLoad();
+  if(items===null){
+    empty.textContent='ライブラリの読み込みに失敗しました';
+    empty.style.display='block';
+    cnt.textContent='';
+    return;
+  }
   cnt.textContent=items.length?`${items.length}曲`:'';
   empty.textContent='登録済みの曲はありません';
   empty.style.display=items.length?'none':'block';
@@ -797,7 +820,7 @@ async function saveToLib(){
     toast(`「${title}」を登録しました ✓`,'ok');
     libRender();
   }catch(e){
-    toast('保存失敗: '+e.message,'err');
+    toast('保存失敗: '+errMsg(e),'err');
   }finally{
     btn.textContent='＋ 現在の曲を登録';
     btn.disabled=!(mp3File||selTrk>=0);
@@ -821,24 +844,37 @@ async function libLoad_item(item){
 
   // load MP3
   if(item.mp3_path){
-    const {data}=supa.storage.from(BUCKET).getPublicUrl(item.mp3_path);
-    mp3Url=data.publicUrl;
-    audio.src=mp3Url;
-    // mp3Fileはダミーで名前だけ保持
-    mp3File={name: item.mp3_name||'audio.mp3', arrayBuffer: async()=>{
-      const r=await fetch(mp3Url); return r.arrayBuffer();
-    }};
-    const s=(item.mp3_name||'audio.mp3').length>24?(item.mp3_name||'audio.mp3').slice(0,24)+'…':item.mp3_name||'audio.mp3';
-    document.getElementById('mp3Nm').textContent=s;
-    document.getElementById('cardMp3').classList.add('loaded');
+    try{
+      const {data,error}=supa.storage.from(BUCKET).getPublicUrl(item.mp3_path);
+      if(error) throw new Error('URL取得失敗: '+error.message);
+      mp3Url=data.publicUrl;
+      console.log('[MP3 URL]', mp3Url);
+      // HEAD requestで実際にアクセスできるか確認
+      const testRes=await fetch(mp3Url, {method:'HEAD'});
+      if(!testRes.ok) throw new Error(`HTTP ${testRes.status}: Supabaseバケットのpublicアクセスを有効にしてください`);
+      audio.src=mp3Url;
+      mp3File={name: item.mp3_name||'audio.mp3', arrayBuffer: async()=>{
+        const r=await fetch(mp3Url); return r.arrayBuffer();
+      }};
+      const nm=item.mp3_name||'audio.mp3';
+      document.getElementById('mp3Nm').textContent=nm.length>24?nm.slice(0,24)+'…':nm;
+      document.getElementById('cardMp3').classList.add('loaded');
+      console.log('[MP3] OK');
+    }catch(err){
+      console.error('[MP3 ERROR]', err, JSON.stringify(err));
+      toast('MP3読み込みエラー: '+errMsg(err),'err');
+    }
   }
 
   // load MIDI
   if(item.mid_path){
-    const {data}=supa.storage.from(BUCKET).getPublicUrl(item.mid_path);
-    toast('MIDIを読み込み中…','info');
     try{
+      const {data,error}=supa.storage.from(BUCKET).getPublicUrl(item.mid_path);
+      if(error) throw new Error('URL取得失敗: '+error.message);
+      console.log('[MIDI URL]', data.publicUrl);
+      toast('MIDIを読み込み中…','info');
       const r=await fetch(data.publicUrl);
+      if(!r.ok) throw new Error(`HTTP ${r.status}: Supabaseバケットのpublicアクセスを確認してください`);
       const ab=await r.arrayBuffer();
       rawMidiBuf=ab; rawMidiName=item.mid_name||'midi.mid';
       const s=rawMidiName.length>24?rawMidiName.slice(0,24)+'…':rawMidiName;
@@ -854,16 +890,17 @@ async function libLoad_item(item){
       sel.value=best; onTrackChange();
       document.getElementById('trackPanel').classList.add('open');
       document.getElementById('cardMid').classList.add('loaded');
-    }catch(err){ toast('MIDI読み込みエラー: '+err.message,'err'); }
+      console.log('[MIDI] OK');
+    }catch(err){
+      console.error('[MIDI ERROR]', err, JSON.stringify(err));
+      toast('MIDI読み込みエラー: '+errMsg(err),'err');
+    }
   }
 
   if(item.title) document.getElementById('metaTitle').value=item.title;
   if(item.artist) document.getElementById('metaArtist').value=item.artist;
   document.getElementById('metaRow').classList.add('open');
   chkReady();
-  toast(`「${item.title}」を読み込みました`,'ok');
-}
-
   toast(`「${item.title}」を読み込みました`,'ok');
 }
 const audio=document.getElementById('audioEl');
@@ -891,6 +928,12 @@ function acorr(buf,sr){
   return sr/(mp+(cc-a)/(2*(2*b-a-cc)));
 }
 
+function errMsg(e){
+  if(!e) return '不明なエラー';
+  if(typeof e==='string') return e;
+  if(e.message) return e.message;
+  try{ return JSON.stringify(e); }catch{ return String(e); }
+}
 function toast(msg,type='ok'){
   const el=document.getElementById('toast');
   el.textContent=msg; el.className=`show ${type}`;
@@ -940,7 +983,7 @@ document.getElementById('fileMid').addEventListener('change',async e=>{
     document.getElementById('trackPanel').classList.add('open');
     document.getElementById('cardMid').classList.add('loaded');
     toast(`MIDI parsed — ${midiTracks.length} tracks`,'info');
-  }catch(err){toast('Parse error: '+err.message,'err');bar.style.width='0%';}
+  }catch(err){toast('Parse error: '+errMsg(err),'err');bar.style.width='0%';}
   chkReady();
 });
 
@@ -954,6 +997,61 @@ function onTrackChange(){
     document.getElementById('midiInfo').textContent=`${timeline.length} notes · ${n2s(lo)} – ${n2s(hi)}`;
   }
   chkReady();
+}
+
+/* DIAG */
+async function runDiag(){
+  const out=document.getElementById('diagOut');
+  out.style.display='block'; out.textContent='診断中…';
+  const lines=[];
+  const ok=s=>`✅ ${s}`, ng=s=>`❌ ${s}`, inf=s=>`ℹ️  ${s}`;
+
+  // 1. Supabase DB接続
+  try{
+    const {data,error}=await supa.from('songs').select('count',{count:'exact',head:true});
+    if(error) lines.push(ng('DB接続失敗: '+errMsg(error)));
+    else lines.push(ok('DB接続 OK'));
+  }catch(e){ lines.push(ng('DB例外: '+errMsg(e))); }
+
+  // 2. Storageバケット一覧
+  try{
+    const {data,error}=await supa.storage.listBuckets();
+    if(error) lines.push(ng('Storage API失敗: '+errMsg(error)));
+    else{
+      const bucket=data.find(b=>b.name===BUCKET);
+      if(!bucket) lines.push(ng(`バケット「${BUCKET}」が見つかりません`));
+      else lines.push(ok(`バケット「${BUCKET}」あり — public: ${bucket.public}`));
+    }
+  }catch(e){ lines.push(ng('Storage例外: '+errMsg(e))); }
+
+  // 3. songs テーブルに行があるか
+  try{
+    const {data,error}=await supa.from('songs').select('id,title,mp3_path,mid_path').limit(1);
+    if(error) lines.push(ng('songs取得失敗: '+errMsg(error)));
+    else if(!data||!data.length) lines.push(inf('songsテーブルは空です'));
+    else{
+      lines.push(ok(`songsテーブル: 行あり (例: "${data[0].title}")`));
+      // 4. ファイルURLが取れるか
+      if(data[0].mp3_path){
+        const {data:u}=supa.storage.from(BUCKET).getPublicUrl(data[0].mp3_path);
+        lines.push(inf('MP3 public URL: '+u.publicUrl));
+        try{
+          const r=await fetch(u.publicUrl,{method:'HEAD'});
+          lines.push(r.ok ? ok(`MP3 HEAD → ${r.status}`) : ng(`MP3 HEAD → ${r.status} (公開されていない可能性)`));
+        }catch(e){ lines.push(ng('MP3 fetch失敗: '+errMsg(e))); }
+      }
+      if(data[0].mid_path){
+        const {data:u}=supa.storage.from(BUCKET).getPublicUrl(data[0].mid_path);
+        lines.push(inf('MIDI public URL: '+u.publicUrl));
+        try{
+          const r=await fetch(u.publicUrl,{method:'HEAD'});
+          lines.push(r.ok ? ok(`MIDI HEAD → ${r.status}`) : ng(`MIDI HEAD → ${r.status} (公開されていない可能性)`));
+        }catch(e){ lines.push(ng('MIDI fetch失敗: '+errMsg(e))); }
+      }
+    }
+  }catch(e){ lines.push(ng('songs例外: '+errMsg(e))); }
+
+  out.innerHTML=lines.join('<br>');
 }
 
 /* MIC */
